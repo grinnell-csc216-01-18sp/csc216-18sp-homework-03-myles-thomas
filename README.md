@@ -31,6 +31,6 @@ optional arguments:
 
 ## Repository Information
 
-* *(Your names and Grinnell IDs)*
-* *(The version of Python that you used)*
-* *(List of external resources that you consulted)*
+* Thomas Pinkava [pinkavat] Myles Becker [beckermy]
+* Python 2.7 used
+* Code for stopping timer taken from piazza response to question
