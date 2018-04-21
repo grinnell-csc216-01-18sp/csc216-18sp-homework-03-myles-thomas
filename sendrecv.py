@@ -33,6 +33,10 @@ from sendrecvbase import BaseSender, BaseReceiver
 
 import Queue
 
+# The timeout for the Alternating bit protocol
+ALT_BIT_INTERVAL = 5
+
+
 class Segment:
     def __init__(self, msg, dst, altBit):
 
@@ -74,8 +78,51 @@ class NaiveReceiver(BaseReceiver):
 # Alternating-bit protocol
 # ========================
 class AltSender(BaseSender):
-    #TODO
-    pass
+    def __init__(self):
+        super(AltReceiver, self).__init__()
+
+        self.state = True
+        # states:
+        # True = waiting for application layer
+        # False = waiting for ACK
+        # whether 0 or 1 is awaited is determined by self.altBit (below)
+
+        # the alternating 'bit' for which we wait
+        self.altBit = False
+
+        # persistent storage for each message if it needs resending
+        self.out = Segment('', 'receiver', self.altBit)
+
+    def receive_from_app(self, msg):
+        # if we are ready to receive from application layer
+        if state:
+            # Send the message [and store it for resending]
+            self.out = Segment(msg, 'receiver', self.altBit)
+            self.send_to_network(self.out)
+            # Update our state
+            self.state = not self.state
+            # Start the timer
+            self.start_timer(ALT_BIT_INTERVAL)
+    
+    def receive_from_network(self, seg):
+        # if we are awaiting network message
+        if not state:
+            if (not '<CORRUPTED>' in seg.msg) and seg.altBit == self.altBit:
+                # Message is noncorrupted and valid
+                
+                #TODO: stop the timer here
+                # Update our state and bit
+                self.state = not self.state
+                self.altBit = not self.altBit
+
+
+    def on_interrupt():
+        # if we are in fact in wait mode
+        if not state:
+            # Re-send the packet and restart the timer
+            self.send_to_network(self.out)
+            self.start_timer(ALT_BIT_INTERVAL)
+
 
 class AltReceiver(BaseReceiver):
     def __init__(self):
@@ -84,7 +131,7 @@ class AltReceiver(BaseReceiver):
         # messageNumber is the alternating 'bit' for which we wait
     
     def receive_from_client(self, seg):
-        if "<CORRUPTED>" in seg.msg:
+        if '<CORRUPTED>' in seg.msg:
             # Corrupted message, so we send an ACK of the opposite bit
             out = Segment('<ACK>', 'sender', not self.altBit)
             self.send_to_network(out)
