@@ -34,9 +34,19 @@ from sendrecvbase import BaseSender, BaseReceiver
 import Queue
 
 class Segment:
-    def __init__(self, msg, dst):
+    def __init__(self, msg, dst, altBit):
+
+        # We represent ACK as '<ACK>' in the msg;
+        # under alternating-bit protocol NAK is just
+        # an ACK for the wrong alternating bit
         self.msg = msg
         self.dst = dst
+        
+        # The alternating 'bit' used for that protocol
+        # represented as a BOOLEAN VALUE
+        self.altBit = altBit
+
+
 
 class NaiveSender(BaseSender):
     def __init__(self, app_interval):
@@ -59,13 +69,44 @@ class NaiveReceiver(BaseReceiver):
     def receive_from_client(self, seg):
         self.send_to_app(seg.msg)
 
+
+
+# Alternating-bit protocol
+# ========================
 class AltSender(BaseSender):
-    # TODO: fill me in!
+    #TODO
     pass
 
 class AltReceiver(BaseReceiver):
-    # TODO: fill me in!
-    pass
+    def __init__(self):
+        super(AltReceiver, self).__init__()
+        self.altBit = False
+        # messageNumber is the alternating 'bit' for which we wait
+    
+    def receive_from_client(self, seg):
+        if "<CORRUPTED>" in seg.msg:
+            # Corrupted message, so we send an ACK of the opposite bit
+            out = Segment('<ACK>', 'sender', not self.altBit)
+            self.send_to_network(out)
+        else:
+
+            # Message is not corrupt but may be incorrect bit
+            if self.altBit == seg.altBit:
+                # Message is of awaited bit, so deliver it...
+                self.send_to_app(seg.msg)
+                # ...then send the true ACK...
+                out = Segment('<ACK>', 'sender', self.altBit)
+                # ...and update our own state
+                self.altBit = not self.altBit
+
+            else:
+                # Message is of wrong bit, so send opposite ACK
+                out = Segment('<ACK>', 'sender', not self.altBit)
+                self.send_to_network(out)
+
+
+
+
 
 class GBNSender(BaseSender):
     # TODO: fill me in!
