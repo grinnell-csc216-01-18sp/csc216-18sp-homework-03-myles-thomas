@@ -33,6 +33,10 @@ from sendrecvbase import BaseSender, BaseReceiver
 
 import Queue
 
+# N.B. on timeouts: Even with a network delay of 0, app-delay of 5 is needed
+# (in Alternating bit protocol at least) to ensure everything given by the
+# application layer is sent
+
 # The timeout for the Alternating bit protocol
 ALT_BIT_INTERVAL = 5
 
@@ -57,13 +61,13 @@ class NaiveSender(BaseSender):
         super(NaiveSender, self).__init__(app_interval)
 
     def receive_from_app(self, msg):
-        seg = Segment(msg, 'receiver')
+        seg = Segment(msg, 'receiver', False) # altBit ignored
         self.send_to_network(seg)
 
     def receive_from_network(self, seg):
         pass    # Nothing to do!
 
-    def on_interrupt():
+    def on_interrupt(self):
         pass    # Nothing to do!
 
 class NaiveReceiver(BaseReceiver):
@@ -78,8 +82,8 @@ class NaiveReceiver(BaseReceiver):
 # Alternating-bit protocol
 # ========================
 class AltSender(BaseSender):
-    def __init__(self):
-        super(AltReceiver, self).__init__()
+    def __init__(self, app_interval):
+        super(AltSender, self).__init__(app_interval)
 
         self.state = True
         # states:
@@ -95,7 +99,7 @@ class AltSender(BaseSender):
 
     def receive_from_app(self, msg):
         # if we are ready to receive from application layer
-        if state:
+        if self.state:
             # Send the message [and store it for resending]
             self.out = Segment(msg, 'receiver', self.altBit)
             self.send_to_network(self.out)
@@ -103,22 +107,29 @@ class AltSender(BaseSender):
             self.state = not self.state
             # Start the timer
             self.start_timer(ALT_BIT_INTERVAL)
+
+    # Function to stop the timer (Temporary fix hopefully)
+    #TODO: credit this to piazza person
+    def stop_timer(self):
+        self.custom_enabled = False
+        self.custom_timer = 0
     
     def receive_from_network(self, seg):
         # if we are awaiting network message
-        if not state:
+        if not self.state:
             if (not '<CORRUPTED>' in seg.msg) and seg.altBit == self.altBit:
                 # Message is noncorrupted and valid
                 
-                #TODO: stop the timer here
+                #TODO: redo the stop-timer thingy
+                self.stop_timer()
                 # Update our state and bit
                 self.state = not self.state
                 self.altBit = not self.altBit
 
 
-    def on_interrupt():
+    def on_interrupt(self):
         # if we are in fact in wait mode
-        if not state:
+        if not self.state:
             # Re-send the packet and restart the timer
             self.send_to_network(self.out)
             self.start_timer(ALT_BIT_INTERVAL)
@@ -143,6 +154,7 @@ class AltReceiver(BaseReceiver):
                 self.send_to_app(seg.msg)
                 # ...then send the true ACK...
                 out = Segment('<ACK>', 'sender', self.altBit)
+                self.send_to_network(out)
                 # ...and update our own state
                 self.altBit = not self.altBit
 
