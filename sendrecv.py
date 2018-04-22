@@ -100,6 +100,8 @@ class AltSender(BaseSender):
     def receive_from_app(self, msg):
         # if we are ready to receive from application layer
         if self.state:
+            # TODO:Tell the application layer it cannot send any more messages
+            #self.disallow_app_msgs()
             # Send the message [and store it for resending]
             self.out = Segment(msg, 'receiver', self.altBit)
             self.send_to_network(self.out)
@@ -107,24 +109,20 @@ class AltSender(BaseSender):
             self.state = not self.state
             # Start the timer
             self.start_timer(ALT_BIT_INTERVAL)
-
-    # Function to stop the timer (Temporary fix hopefully)
-    #TODO: credit this to piazza person
-    def stop_timer(self):
-        self.custom_enabled = False
-        self.custom_timer = 0
     
     def receive_from_network(self, seg):
         # if we are awaiting network message
         if not self.state:
             if (not '<CORRUPTED>' in seg.msg) and seg.altBit == self.altBit:
-                # Message is noncorrupted and valid
-                
-                #TODO: redo the stop-timer thingy
-                self.stop_timer()
-                # Update our state and bit
+                # Message is noncorrupted and valid, so:
+                # Stop the timer
+                self.end_timer()
+                # Update our state to waiting for app
                 self.state = not self.state
+                # Toggle our bit
                 self.altBit = not self.altBit
+                # TODO:Clear the application layer for sending the next message
+                #self.allow_app_msgs()
 
 
     def on_interrupt(self):
