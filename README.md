@@ -33,4 +33,3 @@ optional arguments:
 
 * Thomas Pinkava [pinkavat] Myles Becker [beckermy]
 * Python 2.7 used
-* Code for stopping timer taken from piazza response to question
