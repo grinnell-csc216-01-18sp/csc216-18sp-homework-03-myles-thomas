@@ -42,7 +42,7 @@ ALT_BIT_INTERVAL = 5
 
 
 class Segment:
-    def __init__(self, msg, dst, altBit):
+    def __init__(self, msg, dst, altBit = 1, sequence_number = 1):
 
         # We represent ACK as '<ACK>' in the msg;
         # under alternating-bit protocol NAK is just
@@ -54,7 +54,9 @@ class Segment:
         # represented as a BOOLEAN VALUE
         self.altBit = altBit
 
-
+        # The sequence number of the packet
+		# used by the GBN protocol
+        self.sequence_number = sequence_number
 
 class NaiveSender(BaseSender):
     def __init__(self, app_interval):
@@ -64,7 +66,7 @@ class NaiveSender(BaseSender):
         seg = Segment(msg, 'receiver', False) # altBit ignored
         self.send_to_network(seg)
 
-    def receive_from_network(self, seg):
+    def receive_from_network(self, seeg):
         pass    # Nothing to do!
 
     def on_interrupt(self):
@@ -101,7 +103,7 @@ class AltSender(BaseSender):
         # if we are ready to receive from application layer
         if self.state:
             # TODO:Tell the application layer it cannot send any more messages
-            self.allow_app_msgs()
+            self.disallow_app_msgs()
             # Send the message [and store it for resending]
             self.out = Segment(msg, 'receiver', self.altBit)
             self.send_to_network(self.out)
@@ -122,7 +124,7 @@ class AltSender(BaseSender):
                 # Toggle our bit
                 self.altBit = not self.altBit
                 # TODO:Clear the application layer for sending the next message
-                self.disallow_app_msgs()
+                self.allow_app_msgs()
 
 
     def on_interrupt(self):
@@ -161,14 +163,44 @@ class AltReceiver(BaseReceiver):
                 out = Segment('<ACK>', 'sender', not self.altBit)
                 self.send_to_network(out)
 
+class GBNSender(BaseSender): 
+    def __init__(self, app_interval):
+        super(GBNSender, self).__init__(app_interval)
+        self.oldest = 1
+		self.next_sequence = 2
+		self.max = 3
+		self.queue = Queue.Queue()
+	
+	def receive_from_app(self, msg):
+	    seg = Segment(self, msg, dst, next_sequence)
+        queue.put(seg)
+        self.send_to_network(deepcopy(seg))
+        self.next_sequence += 1
+		if self.queue.qsize() == self.max:
+            self.allow_app_msgs()
+        if self.queue.qsize() == 1
+            self.start_timer(15)
+	
+	def receive_from_network(self, seg):
+	    if seg.msg == '<ACK>' and seg.sequence_number > self.oldest:
+            self.oldest = seg.sequence_number
+			while not self.queue.empty() and peek(self.queue).sequence_number < self.oldest:
+                self.queue.get()
 
-
-
-
-class GBNSender(BaseSender):
-    # TODO: fill me in!
-    pass
+	def on_interupt(self):
+		for list(self.queue):  
+            self.send_to_network(deepcopy(seg))
+        self.start_timer(15)
 
 class GBNReceiver(BaseReceiver):
-    # TODO: fill me in!
-    pass
+    def __init__(self):
+        super(GBNReceiver, self).__init__()
+        self.newest_sequence = 1
+
+    def receive_from_network(self, seg):
+	    if seg.msg != '<CORRUPTED>': 
+            self.send_to_app(seg.msg)
+            seg2 = Segment('<ACK>', 'sender', seg.sequence_number)
+        else
+            seg2 = Segment('<ACK>', 'sender', self.newest_sequence)
+        self.send_to_network(seg2)
