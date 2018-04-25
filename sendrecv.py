@@ -200,7 +200,7 @@ class GBNSender(BaseSender):
         self.send_to_network(deepcopy(seg))
         self.next_sequence += 1
 		if self.queue.qsize() == self.max:
-            self.allow_app_msgs()
+            self.disallow_app_msgs()
         if self.queue.qsize() == 1
             self.start_timer(15)
 	
@@ -209,9 +209,10 @@ class GBNSender(BaseSender):
             self.oldest = seg.sequence_number
 			while not self.queue.empty() and peek(self.queue).sequence_number < self.oldest:
                 self.queue.get()
+            self.allow_app_messages()
 
 	def on_interupt(self):
-		for list(self.queue):  
+		for seg in list(self.queue):  
             self.send_to_network(deepcopy(seg))
         self.start_timer(15)
 
