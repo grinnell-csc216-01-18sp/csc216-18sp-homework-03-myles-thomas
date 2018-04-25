@@ -58,12 +58,9 @@ class Segment:
         # sequence numbers, SYN will be represented in the
         # message as "<SYN>", SYNACK as "<SYNACK>" and
         # the third message as "<SYNACKACK>".
+        # Mastery component control handled by Simulation
 
-        # For want of a better structure, each extended class
-        # (That we wrote, a Naive Sender/Receiver wouldn't use
-        # reliable transport protocols) has its own implementation
-        # of the mastery component.
-
+      
 
 
 
@@ -72,7 +69,7 @@ class NaiveSender(BaseSender):
         super(NaiveSender, self).__init__(app_interval)
 
     def receive_from_app(self, msg):
-        seg = Segment(msg, 'receiver', False) # altBit ignored
+        seg = Segment(msg, 'receiver') # altBit ignored
         self.send_to_network(seg)
 
     def receive_from_network(self, seeg):
@@ -96,9 +93,6 @@ class AltSender(BaseSender):
     def __init__(self, app_interval):
         super(AltSender, self).__init__(app_interval)
 
-        # The Mastery Component Field: TODO: set this to False to make this all work
-        self.connected = True
-
         self.state = True
         # states:
         # True = waiting for application layer
@@ -112,23 +106,17 @@ class AltSender(BaseSender):
         self.out = Segment('', 'receiver', self.altBit)
 
     def receive_from_app(self, msg):
-        # Receipt from the application layer in an unconnected state
-        # can be construed as a start of communications, thus a trigger
-        # for the TCP connection to initialize
-        if not self.connected:
-            # TODO: send a SYN message, somehow locking it into the Alt-bit rtp
-        else:
-            # if we are ready to receive from application layer
-            if self.state:
-                # Tell the application layer it cannot send any more messages
-                self.disallow_app_msgs()
-                # Send the message [and store it for resending]
-                self.out = Segment(msg, 'receiver')
-                self.send_to_network(self.out)
-                # Update our state
-                self.state = not self.state
-                # Start the timer
-                self.start_timer(ALT_BIT_INTERVAL)
+        # if we are ready to receive from application layer
+        if self.state:
+            # Tell the application layer it cannot send any more messages
+            self.disallow_app_msgs()
+            # Send the message [and store it for resending]
+            self.out = Segment(msg, 'receiver')
+            self.send_to_network(self.out)
+            # Update our state
+            self.state = not self.state
+            # Start the timer
+            self.start_timer(ALT_BIT_INTERVAL)
     
 
     def receive_from_network(self, seg):
