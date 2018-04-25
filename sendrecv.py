@@ -42,7 +42,7 @@ ALT_BIT_INTERVAL = 5
 
 
 class Segment:
-    def __init__(self, msg, dst, altBit = 1, sequence_number = 1):
+    def __init__(self, msg, dst, altBit = True, sequence_number = 1):
 
         # We represent ACK as '<ACK>' in the msg;
         # under alternating-bit protocol NAK is just
@@ -57,6 +57,15 @@ class Segment:
         # The sequence number of the packet
 		# used by the GBN protocol
         self.sequence_number = sequence_number
+
+        # For the Mastery Component, since we aren't using
+        # sequence numbers, SYN will be represented in the
+        # message as "<SYN>", SYNACK as "<SYNACK>" and
+        # the third message as "<SYNACKACK>"
+
+
+
+# The BaseSender and BaseReceiver classes have been extended with TCP fields
 
 class NaiveSender(BaseSender):
     def __init__(self, app_interval):
@@ -162,6 +171,11 @@ class AltReceiver(BaseReceiver):
                 # Message is of wrong bit, so send opposite ACK
                 out = Segment('<ACK>', 'sender', not self.altBit)
                 self.send_to_network(out)
+
+
+
+
+
 
 class GBNSender(BaseSender): 
     def __init__(self, app_interval):
