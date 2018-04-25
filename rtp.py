@@ -59,31 +59,45 @@ class Simulation:
         if random.random() >= self.drop_prob:
             self.network_queue.put( (step + self.net_delay, seg) )
 
+    # Step code placed in this function for allowing special messages
+    # function returns whatever was sent to app layer by receiver this tick
+    # parameter tcpStatus is a string that is passed straight through to the step
+    # if tcpStatus is '', system ticks as normal
+    # if tcpStatus is anything else, the sender sends that value as if it were
+    # received from the application layer. A single invocation of tick per message
+    # is required.
+    def tick(self, tcpStatus):
+        self.print_debug('Step {}:'.format(step))
+        # 1. Step the sender and receiver
+        self.sender.step(tcpStatus)
+        out = self.receiver.step()
+
+        # 2. Step the network layer
+        if not self.network_queue.empty():
+            (timeout, _) = peek(self.network_queue)
+            if step >= timeout:
+                (_, seg) = self.network_queue.get()
+                if random.random() < self.corr_prob:
+                    seg.msg = '<CORRUPTED>'
+                if seg.dst == "sender":
+                    self.sender.input_queue.put(seg)
+                elif seg.dst == "receiver":
+                    self.receiver.input_queue.put(seg)
+                else:
+                    raise RuntimeError('Unknown destination: {}'.format(seg.dst))
+        if not self.sender.output_queue.empty():
+            self.push_to_network(step, self.sender.output_queue.get())
+        if not self.receiver.output_queue.empty():
+            self.push_to_network(step, self.receiver.output_queue.get())
+
+        return out
+
+
     def run(self, n):
+        # This section has been adjusted to coordinate TCP protocol
         for step in range(1, n+1):
-            self.print_debug('Step {}:'.format(step))
-            # 1. Step the sender and receiver
-            self.sender.step()
-            self.receiver.step()
-
-            # 2. Step the network layer
-            if not self.network_queue.empty():
-                (timeout, _) = peek(self.network_queue)
-                if step >= timeout:
-                    (_, seg) = self.network_queue.get()
-                    if random.random() < self.corr_prob:
-                        seg.msg = '<CORRUPTED>'
-                    if seg.dst == "sender":
-                        self.sender.input_queue.put(seg)
-                    elif seg.dst == "receiver":
-                        self.receiver.input_queue.put(seg)
-                    else:
-                        raise RuntimeError('Unknown destination: {}'.format(seg.dst))
-            if not self.sender.output_queue.empty():
-                self.push_to_network(step, self.sender.output_queue.get())
-            if not self.receiver.output_queue.empty():
-                self.push_to_network(step, self.receiver.output_queue.get())
-
+            self.tick('')
+            
 def main():
     parser = argparse.ArgumentParser(
             description='Simulates transportation layer network traffic.')
