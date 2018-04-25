@@ -73,18 +73,11 @@ class BaseReceiver(object):
         self.input_queue    = Queue.Queue()
         self.output_queue   = Queue.Queue()
         self.received_count = 0
-        self.appside = '<NOTHING>'
         pass
 
     def step(self):
         if not self.input_queue.empty():
             self.receive_from_client(self.input_queue.get())
-        # Hack to allow Simulation to detect what is sent to app layer 
-        # Should cause BaseReceiver step to return whatever it successfully
-        # received, or '<NOTHING>' if nothing was received that step
-        tickTemp = self.appside
-        self.appside = '<NOTHING>'
-        return tickTemp
 
     def send_to_network(self, seg):
         self.output_queue.put(seg)
@@ -92,8 +85,6 @@ class BaseReceiver(object):
     def send_to_app(self, msg):
         self.received_count += 1
         print('Message received ({}): {}'.format(self.received_count, msg))
-        # Hack to allow Simulation to detect when TCP handshake succeeds
-        self.appside = msg       
 
     def receive_from_client(self, seg):
         pass
