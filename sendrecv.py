@@ -33,10 +33,6 @@ from sendrecvbase import BaseSender, BaseReceiver
 
 import Queue
 
-# N.B. on timeouts: Even with a network delay of 0, app-delay of 5 is needed
-# (in Alternating bit protocol at least) to ensure everything given by the
-# application layer is sent
-
 # The timeout for the Alternating bit protocol
 ALT_BIT_INTERVAL = 5
 
@@ -61,11 +57,15 @@ class Segment:
         # For the Mastery Component, since we aren't using
         # sequence numbers, SYN will be represented in the
         # message as "<SYN>", SYNACK as "<SYNACK>" and
-        # the third message as "<SYNACKACK>"
+        # the third message as "<SYNACKACK>".
+
+        # For want of a better structure, each extended class
+        # (That we wrote, a Naive Sender/Receiver wouldn't use
+        # reliable transport protocols) has its own implementation
+        # of the mastery component.
 
 
 
-# The BaseSender and BaseReceiver classes have been extended with TCP fields
 
 class NaiveSender(BaseSender):
     def __init__(self, app_interval):
@@ -96,6 +96,9 @@ class AltSender(BaseSender):
     def __init__(self, app_interval):
         super(AltSender, self).__init__(app_interval)
 
+        # The Mastery Component Field: TODO: set this to False to make this all work
+        self.connected = True
+
         self.state = True
         # states:
         # True = waiting for application layer
@@ -109,20 +112,26 @@ class AltSender(BaseSender):
         self.out = Segment('', 'receiver', self.altBit)
 
     def receive_from_app(self, msg):
-        # if we are ready to receive from application layer
-        if self.state:
-            # TODO:Tell the application layer it cannot send any more messages
-            self.disallow_app_msgs()
-            # Send the message [and store it for resending]
-            self.out = Segment(msg, 'receiver', self.altBit)
-            self.send_to_network(self.out)
-            # Update our state
-            self.state = not self.state
-            # Start the timer
-            self.start_timer(ALT_BIT_INTERVAL)
+        # Receipt from the application layer in an unconnected state
+        # can be construed as a start of communications, thus a trigger
+        # for the TCP connection to initialize
+        if not self.connected:
+            # TODO: send a SYN message, somehow locking it into the Alt-bit rtp
+        else:
+            # if we are ready to receive from application layer
+            if self.state:
+                # Tell the application layer it cannot send any more messages
+                self.disallow_app_msgs()
+                # Send the message [and store it for resending]
+                self.out = Segment(msg, 'receiver')
+                self.send_to_network(self.out)
+                # Update our state
+                self.state = not self.state
+                # Start the timer
+                self.start_timer(ALT_BIT_INTERVAL)
     
+
     def receive_from_network(self, seg):
-        # if we are awaiting network message
         if not self.state:
             if (not '<CORRUPTED>' in seg.msg) and seg.altBit == self.altBit:
                 # Message is noncorrupted and valid, so:
@@ -132,7 +141,7 @@ class AltSender(BaseSender):
                 self.state = not self.state
                 # Toggle our bit
                 self.altBit = not self.altBit
-                # TODO:Clear the application layer for sending the next message
+                # Clear the application layer for sending the next message
                 self.allow_app_msgs()
 
 
@@ -218,3 +227,4 @@ class GBNReceiver(BaseReceiver):
         else
             seg2 = Segment('<ACK>', 'sender', self.newest_sequence)
         self.send_to_network(seg2)
+
