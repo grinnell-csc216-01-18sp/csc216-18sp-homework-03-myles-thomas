@@ -178,29 +178,29 @@ class GBNSender(BaseSender):
     def __init__(self, app_interval):
         super(GBNSender, self).__init__(app_interval)
         self.oldest = 1
-		self.next_sequence = 2
-		self.max = 3
-		self.queue = Queue.Queue()
+	self.next_sequence = 2
+	self.max = 3
+	self.queue = Queue.Queue()
 	
-	def receive_from_app(self, msg):
-	    seg = Segment(self, msg, dst, next_sequence)
+    def receive_from_app(self, msg):
+	seg = Segment(self, msg, dst, next_sequence)
         queue.put(seg)
         self.send_to_network(deepcopy(seg))
         self.next_sequence += 1
-		if self.queue.qsize() == self.max:
+	if self.queue.qsize() == self.max:
             self.disallow_app_msgs()
-        if self.queue.qsize() == 1
+        if self.queue.qsize() == 1:
             self.start_timer(15)
 	
-	def receive_from_network(self, seg):
-	    if seg.msg == '<ACK>' and seg.sequence_number > self.oldest:
+    def receive_from_network(self, seg):
+        if seg.msg == '<ACK>' and seg.sequence_number > self.oldest:
             self.oldest = seg.sequence_number
-			while not self.queue.empty() and peek(self.queue).sequence_number < self.oldest:
+	    while not self.queue.empty() and peek(self.queue).sequence_number < self.oldest:
                 self.queue.get()
             self.allow_app_messages()
 
-	def on_interupt(self):
-		for seg in list(self.queue):  
+    def on_interupt(self):
+	for seg in list(self.queue):  
             self.send_to_network(deepcopy(seg))
         self.start_timer(15)
 
@@ -210,10 +210,10 @@ class GBNReceiver(BaseReceiver):
         self.newest_sequence = 1
 
     def receive_from_network(self, seg):
-	    if seg.msg != '<CORRUPTED>': 
+	if seg.msg != '<CORRUPTED>': 
             self.send_to_app(seg.msg)
             seg2 = Segment('<ACK>', 'sender', seg.sequence_number)
-        else
+        else:
             seg2 = Segment('<ACK>', 'sender', self.newest_sequence)
         self.send_to_network(seg2)
 
