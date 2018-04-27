@@ -59,66 +59,31 @@ class Simulation:
         if random.random() >= self.drop_prob:
             self.network_queue.put( (step + self.net_delay, seg) )
 
-    # Step code placed in this function for allowing special messages
-    # parameter tcpStatus is a string that is passed straight through to the step
-    # if tcpStatus is '', system ticks as normal
-    # if tcpStatus is anything else, the sender sends that value as if it were
-    # received from the application layer. A single invocation of tick per message
-    # is required.
-    def tick(self, tcpStatus):
-        self.print_debug('Step {}:'.format(step))
-        # 1. Step the sender and receiver
-        self.sender.step(tcpStatus)
-        self.receiver.step()
-
-        # 2. Step the network layer
-        if not self.network_queue.empty():
-            (timeout, _) = peek(self.network_queue)
-            if step >= timeout:
-                (_, seg) = self.network_queue.get()
-                if random.random() < self.corr_prob:
-                    seg.msg = '<CORRUPTED>'
-                if seg.dst == "sender":
-                    self.sender.input_queue.put(seg)
-                elif seg.dst == "receiver":
-                    self.receiver.input_queue.put(seg)
-                else:
-                    raise RuntimeError('Unknown destination: {}'.format(seg.dst))
-        if not self.sender.output_queue.empty():
-            self.push_to_network(step, self.sender.output_queue.get())
-        if not self.receiver.output_queue.empty():
-            self.push_to_network(step, self.receiver.output_queue.get())
-
-    # This function is used in the TCP protocols; it causes the
-    # sender to receive msg from the application layer, and iterates
-    # the Simulation until the sender is ready to accept another message
-    # (i.e. has received ACK from the other end)
-    # Must only be invoked when the sender is awaiting a message
-    def runUntilACK(self, msg):
-        tick(msg) # put the message into the sender
-        while True:
-            tick('') # run regular ticks until sender is ready to receive
-            if self.sender.blocked == False:
-                break
-        
-
     def run(self, n):
-        # This section has been adjusted to coordinate TCP protocol
-        # TCP phase 1: Three-way handshake (actually a four-way handshake,
-        # because of the hacky nature of this thing, and the SYNACK is just
-        # an ACK from the receiver, as I didn't want to drag Sender and
-        # Receiver code into this mess)
-        runUntilACK('<SYN>')
-        runUntilACK('<SYNACKACK>')
-        # the connection is now established
-        # TCP phase 2: transmission of messages for the desired number of turns
         for step in range(1, n+1):
-            self.tick('')
+            self.print_debug('Step {}:'.format(step))
+            # 1. Step the sender and receiver
+            self.sender.step()
+            self.receiver.step()
 
-        # TCP phase 3: closing the connection
-        runUntilACK('<FIN>') # the names don't really mean anything
-        # Then wait for the receiver to send its own FIN TODO
-            
+            # 2. Step the network layer
+            if not self.network_queue.empty():
+                (timeout, _) = peek(self.network_queue)
+                if step >= timeout:
+                    (_, seg) = self.network_queue.get()
+                    if random.random() < self.corr_prob:
+                        seg.msg = '<CORRUPTED>'
+                    if seg.dst == "sender":
+                        self.sender.input_queue.put(seg)
+                    elif seg.dst == "receiver":
+                        self.receiver.input_queue.put(seg)
+                    else:
+                        raise RuntimeError('Unknown destination: {}'.format(seg.dst))
+            if not self.sender.output_queue.empty():
+                self.push_to_network(step, self.sender.output_queue.get())
+            if not self.receiver.output_queue.empty():
+                self.push_to_network(step, self.receiver.output_queue.get())
+
 def main():
     parser = argparse.ArgumentParser(
             description='Simulates transportation layer network traffic.')
@@ -151,4 +116,4 @@ def main():
     sim.run(args.steps)
 
 if __name__ == '__main__':
-    main() 
+    main()
